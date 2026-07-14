@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model User {
+  id            String                               @id @default(uuid())
+
+  name          String
+  email         String                               @unique()
+  hashPassword  String         @map("hash_password")
+
+  confirmTokens ConfirmToken[]
+  categories    Category[]
+  accounts      Account[]
+  transactions  Transaction[]
+
+  createdAt     DateTime       @map("created_at")    @default(now())
+  updatedAt     DateTime       @map("updated_at")    @updatedAt
+
+  @@map("users")
+}
+
+model ConfirmToken {
+  id        String                              @id @default(uuid())
+
+  tokenHash String           @map("token_hash") @unique
+  userId    String           @map("user_id")
+  type      ConfirmTokenEnum
+  payload   Json?
+
+  expiresAt DateTime         @map("expires_at")
+  usedAt    DateTime?        @map("used_at")
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime         @map("created_at") @default(now())
+  updatedAt DateTime         @map("updated_at") @updatedAt
+
+  @@map("confirm_tokens")
+}
+
+model Category {
+  id           String                           @id @default(uuid())
+
+  name         String
+  type         CategoryType
+  colorHex     String?       @map("color_hex")  @db.VarChar(7) @default("#90EE90")
+  iconKey      String?       @map("icon_key")   @default("lucuide:wallet")
+
+  userId       String        @map("user_id")
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  createdAt    DateTime      @map("created_at") @default(now())
+  updatedAt    DateTime      @map("updated_at") @updatedAt
+
+  @@unique([userId, name, type])
+  @@map("categories")
+}
+
+model Account {
+  id             String                                @id @default(uuid())
+
+  name           String
+  type           AccountType
+  initialBalance Decimal       @map("initial_balance") @default(0)
+  currency       String                                @default("USD")
+
+  userId         String        @map("user_id")
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+
+  createdAt      DateTime      @map("created_at")      @default(now())
+  updatedAt      DateTime      @map("updated_at")      @updatedAt
+  @@unique([userId, name])
+  @@map("accounts")
+}
+
+model Transaction {
+  id             String           @id @default(uuid())
+
+  amount         Decimal
+  type           TransactionType
+  note           String?
+
+  archivedAt     DateTime?
+
+  userId         String
+  accountId      String
+  categoryId     String
+
+  //             self-relation
+  correctionOfId String?          @unique()
+  correctionOf   Transaction?    @relation("TransactionCorrection", fields: [correctionOfId], references: [id])
+  correctionBy   Transaction?    @relation("TransactionCorrection")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account        Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category       Category        @relation(fields: [categoryId], references: [id])
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@map("transactions")
+}
+
+enum ConfirmTokenEnum {
+  EMAIL_CHANGE
+  EMAIl_VERIFICATION
+  PASSWORD_RESET
+  PASSWORD_CHANGE
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum CategoryType {
+  INCOME 
+  EXPENSE
+}
+
+enum AccountType {
+  CASH
+  BANK_CARD
+  BANK_ACCOUNT
+  SAVINGS
+  CREDIT_CARDS
+}
